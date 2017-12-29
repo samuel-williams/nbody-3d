@@ -1,0 +1,10 @@
+[package]
+name = "nbody-3d"
+version = "0.1.0"
+authors = ["fastf"]
+
+[dependencies]
+cgmath = "*"
+glium = "*"
+itertools = "*"
+rand = "0.3"
