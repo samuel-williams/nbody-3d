@@ -1,7 +1,7 @@
 /* Define the vertex and fragment shaders here. */
 
-/* Source for vertex shader. */
-pub const VERT: &str = r#"
+/* Source for triangle vertex shader. */
+pub const TRI_VERT: &str = r#"
     #version 150
     
     in vec3 position;
@@ -22,8 +22,8 @@ pub const VERT: &str = r#"
     }
 "#;
 
-/* Source for fragment shader. */
-pub const FRAG: &str = r#"
+/* Source for triangle fragment shader. */
+pub const TRI_FRAG: &str = r#"
     #version 140
     
     in vec3 v_position;
@@ -31,9 +31,10 @@ pub const FRAG: &str = r#"
     out vec4 color;
 
     uniform vec3 u_light;
+    uniform vec3 surface_color;
 
-    const vec3 ambient_color = vec3(0.041, 0.119, 0.172);
-    const vec3 diffuse_color = vec3(0.204, 0.596, 0.859);
+    const vec3 ambient_color = vec3(0.1, 0.1, 0.1);
+    const vec3 diffuse_color = vec3(0.8, 0.8, 0.8);
     const vec3 specular_color = vec3(1.0, 1.0, 1.0);
     
     void main() {
@@ -43,6 +44,35 @@ pub const FRAG: &str = r#"
         vec3 half_direction = normalize(normalize(u_light) + camera_dir);
         float specular = pow(max(dot(half_direction, normalize(v_normal)), 0.0), 32.0);
 
-        color = vec4(ambient_color + diffuse * diffuse_color + specular * specular_color, 1.0);
+        color = vec4((ambient_color + diffuse * diffuse_color + specular * specular_color) * surface_color, 1.0);
+    }
+"#;
+
+pub const LINE_VERT: &str = r#"
+    #version 150
+    
+    in vec3 position;
+    out vec3 v_position;
+
+    uniform mat4 perspective;
+    uniform mat4 view;
+
+    void main() {
+        mat4 modelview = view;
+        v_position = (modelview * vec4(position, 1.0)).xyz;
+        gl_Position = perspective * modelview * vec4(position, 1.0);
+    }
+"#;
+
+pub const LINE_FRAG: &str = r#"
+    #version 140
+    
+    in vec3 v_position;
+    out vec4 color;
+    
+    uniform vec3 surface_color;
+
+    void main() {
+        color = vec4(surface_color, 0.2);
     }
 "#;

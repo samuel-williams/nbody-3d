@@ -3,18 +3,20 @@ extern crate cgmath;
 extern crate glium;
 // extern crate rand;
 
+use gl_vertex::{GlNormal, GlVertex};
 use rand;
 use std::f32::consts::PI;
-use std::vec;
 use teapot_obj;
 
 use cgmath::{InnerSpace, Matrix4, Rad, vec3, Vector3};
+use cgmath::conv::array3;
 
-pub const G: f64 = 0.0000001;  // scale gravitational force
+pub const G: f64 = 0.0000001;  // scale gravitational force 
+pub const MAX_TRAIL_LEN: usize = 100;
 
 pub struct Geometry {
-    pub pos:    glium::VertexBuffer<teapot_obj::Vertex>,
-    pub norm:   glium::VertexBuffer<teapot_obj::Normal>,
+    pub pos:    glium::VertexBuffer<GlVertex>,
+    pub norm:   glium::VertexBuffer<GlNormal>,
     pub ind:    glium::IndexBuffer<u16>
 }
 
@@ -30,38 +32,58 @@ pub fn load_geometry(display: &glium::Display) -> Box<Geometry> {
     })
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct Teapot {
-    // World parameters
+    // Draw parameters
     pub pos:    Vector3<f32>,   // position in world
     pub rot:    Rad<f32>,       // current rotation angle
     pub tilt:   Rad<f32>,       // axial tilt
     pub scale:  f32,            // object scale
+    pub color:  Vector3<f32>,   // color to draw surface
 
     // Physics parameters
     pub d_rot:  Rad<f32>,
     pub vel:    Vector3<f64>,   // velocity vector
     pub m_exp:  f64,            // mass = 10 ^ m_exp
+    pub id:     u32,            // unique identifier
+
+    // Path vertices
+    pub path:   Vec<GlVertex>,
 }
 
 impl Teapot {
-    pub fn new(pos: Vector3<f32>, vel: Vector3<f64>, m_exp: f64) -> Teapot {
+    pub fn new(pos: Vector3<f32>, vel: Vector3<f64>, 
+               m_exp: f64, id: u32) -> Teapot {
         let mut rng = rand::thread_rng();
         use rand::distributions::{IndependentSample, Range};
+        let red = Range::new(0.0, 1.0).ind_sample(&mut rng);
+        let green = Range::new(0.0, 1.0 - red).ind_sample(&mut rng);
+        let blue = 1.0 - (red + green);
+
         Teapot {
             pos: pos,
             rot: Rad(0.0),
             tilt: Rad(Range::new(-0.25, 0.25).ind_sample(&mut rng)),
             scale: (m_exp / 500.0) as f32,
+            color: vec3(red, green, blue),
             d_rot: Rad(Range::new(-0.01, 0.02).ind_sample(&mut rng)),
             vel: vel,
-            m_exp: m_exp
+            m_exp: m_exp,
+            id: id,
+            path: Vec::new()
         }
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self, drop_crumb: bool) {
         self.rot = (self.rot + self.d_rot) % Rad(PI * 2.0);
         self.pos += self.vel.cast();
+
+        if drop_crumb {
+            self.path.insert(0, GlVertex { position: array3(self.pos) });
+            if self.path.len() > MAX_TRAIL_LEN {
+                self.path.pop();
+            }
+        }
     }
 
     pub fn model_matrix(&self) -> Matrix4<f32> {
@@ -83,33 +105,22 @@ impl Teapot {
     interaction with single object. */
     pub fn calc_dvel(t0: &Teapot, t1: &Teapot) -> Vector3<f64> {
         /* Don't interact with self. */
-        if t0.pos == t1.pos {
+        if t0.id == t1.id {
             return vec3(0.0, 0.0, 0.0);
         }
 
         let v0: Vector3<f64> = t0.pos.cast();
         let v1: Vector3<f64> = t1.pos.cast();
 
-        // println!("pos: {} {} {}", self.pos.x, self.pos.y, self.pos.z);
-        // println!("v0: {} {} {}", v0.x, v0.y, v0.z);
-
-        // println!("pos: {} {} {}", teapot.pos.x, teapot.pos.y, teapot.pos.z);
-        // println!("v0: {} {} {}", v1.x, v1.y, v1.z);
-
         let disp = v1 - v0;
-        // println!("disp: {} {} {}", disp.x, disp.y, disp.z);
         let r2 = disp.magnitude2();
-        // println!("r: {}", r);
 
         let dv = G * 10.0f64.powf(t1.m_exp) / r2;
-        // println!("dv: {}", dv);
-        // println!("m_exp0: {}  m_exp1: {}", t0.m_exp, t1.m_exp);
-
-        // println!("m0: {}  m1: {}  r: {}  r2: {}", 
-            // 10.0f64.powf(t0.m_exp), 10.0f64.powf(t1.m_exp),
-            // disp.magnitude(), r2);
-        // println!("dv: {}", dv);
 
         dv * disp.normalize()
     }
+
+    // pub fn get_trail_geom(&self) -> (glium::VertexBuffer<[f32; 3]>, glium::IndexBuffer<u16>) {
+    //     (self.path, 
+    // }
 }

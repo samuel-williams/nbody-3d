@@ -10,18 +10,23 @@ pub enum Pan { Right, Left }
 pub enum Tilt { Up, Down }
 
 #[derive(Copy, Clone)]
-pub enum Movement { Forward, Backward }
+pub enum MoveX { Pos, Neg, }
 
 #[derive(Copy, Clone)]
-pub enum Strafe { Right, Left }
+pub enum MoveZ { Pos, Neg }
+
+#[derive(Copy, Clone)]
+pub enum Zoom { In, Out }
 
 pub struct Input {
     // movement state
+    pub move_x: Option<MoveX>,
+    pub move_z: Option<MoveZ>,
     pub pan:    Option<Pan>,
     pub tilt:   Option<Tilt>,
-    pub mvmt:   Option<Movement>,
-    pub strafe: Option<Strafe>,
+    pub zoom:   Option<Zoom>,
 
+    // program state
     pub running:bool,
     pub trails: bool,
     pub close:  bool     
@@ -30,12 +35,14 @@ pub struct Input {
 impl Input {
     pub fn new() -> Input {
         Input {
+            move_x: None,
+            move_z: None,
             pan:    None,
             tilt:   None,
-            mvmt:   None,
-            strafe: None,
+            zoom:   None,
+            // strafe: None,
             running:false,
-            trails: false,
+            trails: true,
             close:  false
         }
     }
@@ -79,13 +86,33 @@ impl Input {
                 ElementState::Released =>   None,
             },
 
-            Some(VirtualKeyCode::W) => self.mvmt = match input.state {
-                ElementState::Pressed =>    Some(Movement::Forward),
+            Some(VirtualKeyCode::W) => self.move_z = match input.state {
+                ElementState::Pressed =>    Some(MoveZ::Neg),
                 ElementState::Released =>   None,
             },
 
-            Some(VirtualKeyCode::S) => self.mvmt = match input.state {
-                ElementState::Pressed =>    Some(Movement::Backward),
+            Some(VirtualKeyCode::S) => self.move_z = match input.state {
+                ElementState::Pressed =>    Some(MoveZ::Pos),
+                ElementState::Released =>   None,
+            },
+
+            Some(VirtualKeyCode::A) => self.move_x = match input.state {
+                ElementState::Pressed =>    Some(MoveX::Neg),
+                ElementState::Released =>   None,
+            },
+
+            Some(VirtualKeyCode::D) => self.move_x = match input.state {
+                ElementState::Pressed =>    Some(MoveX::Pos),
+                ElementState::Released =>   None,
+            },
+
+            Some(VirtualKeyCode::Z) => self.zoom = match input.state {
+                ElementState::Pressed =>    Some(Zoom::In),
+                ElementState::Released =>   None,
+            },
+
+            Some(VirtualKeyCode::X) => self.zoom = match input.state {
+                ElementState::Pressed =>    Some(Zoom::Out),
                 ElementState::Released =>   None,
             },
 
@@ -95,15 +122,11 @@ impl Input {
                 }
             },
 
-            // Some(VirtualKeyCode::A) => self.strafe = match input.state {
-            //     ElementState::Pressed =>    Some(Strafe::Left),
-            //     ElementState::Released =>   None,
-            // },
-
-            // Some(VirtualKeyCode::D) => self.strafe = match input.state {
-            //     ElementState::Pressed =>    Some(Strafe::Right),
-            //     ElementState::Released =>   None,
-            // },
+            Some(VirtualKeyCode::P) => {
+                if input.state == ElementState::Released {
+                    self.trails = !self.trails
+                }
+            },
 
             _ => (),
         }

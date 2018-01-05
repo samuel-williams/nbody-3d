@@ -1,15 +1,18 @@
 /* Do physics simulation on teapots. */
 
 use cgmath::{InnerSpace, vec3, Vector3};
-use itertools::Itertools;
+// use itertools::Itertools;
 use rand;
 use rand::distributions::{IndependentSample, Range};
 use teapot::{G, Teapot};
 
+const TICKS_PER_PATH_VERT: u64 = 5;
 
 pub struct Simulation {
     teapots:    Vec<Teapot>,
-    rng:        rand::ThreadRng
+    rng:        rand::ThreadRng,
+    tick:       u64,                // current tick
+    next_id:    u32,                // unique id for next object
 }
 
 impl Simulation {
@@ -18,9 +21,12 @@ impl Simulation {
             teapots: vec![Teapot::new(
                 vec3(0.0, 0.0, 0.0), 
                 vec3(0.0, 0.0, 0.0), 
-                5.0
+                5.0,
+                0,
             )],
-            rng: rand::thread_rng()
+            rng: rand::thread_rng(),
+            tick: 0,
+            next_id: 1
         }
     }
 
@@ -30,11 +36,14 @@ impl Simulation {
         let py = Range::new(-0.5, 0.5f32).ind_sample(&mut self.rng);
         let pz = pos_range.ind_sample(&mut self.rng);
         let pos = vec3(px, py, pz);
-        let mut teapot = Teapot::new(pos, vec3(0.0, 0.0, 0.0), 1.0);
+        let id = self.next_id;
+        self.next_id += 1;
+        let mut teapot = Teapot::new(pos, vec3(0.0, 0.0, 0.0), 1.0, id);
         let vel = Simulation::orbit_vel(&teapot, self.greatest_mass());
         teapot.vel = 0.85 * vel;
-        println!("pos {} {} {}", pos.x, pos.y, pos.z);
-        println!("vel {} {} {}", vel.x, vel.y, vel.z);
+        // println!("pos {} {} {}", pos.x, pos.y, pos.z);
+        // println!("vel {} {} {}", vel.x, vel.y, vel.z);
+        // println!("id  {}", id);
         self.teapots.push(teapot);
     }
 
@@ -52,8 +61,10 @@ impl Simulation {
                 let dvel = Teapot::calc_dvel(&teapot, &other);
                 teapot.vel += dvel;
             }
-            teapot.update();
+            teapot.update(self.tick % TICKS_PER_PATH_VERT == 0);
         }
+
+        self.tick += 1;
     }
 
     /* Return position and magnitude of system barycenter. */
