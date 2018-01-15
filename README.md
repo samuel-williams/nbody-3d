@@ -2,7 +2,7 @@
 
 Newtonian gravity simulation for n massive bodies.
 
-To build:
+To build (need rustc and cargo):
 * Clone/download the repository
 * In top-level directory, `cargo build --release`
 
