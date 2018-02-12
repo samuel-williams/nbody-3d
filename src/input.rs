@@ -18,32 +18,48 @@ pub enum MoveZ { Pos, Neg }
 #[derive(Copy, Clone)]
 pub enum Zoom { In, Out }
 
+/* Encapsulate mouse press data. */
+#[derive(Copy, Clone)]
+pub struct MousePress {
+    pub pos: (f64, f64),
+}
+
 pub struct Input {
     // movement state
     pub move_x: Option<MoveX>,
     pub move_z: Option<MoveZ>,
-    pub pan:    Option<Pan>,
-    pub tilt:   Option<Tilt>,
-    pub zoom:   Option<Zoom>,
+    pub pan: Option<Pan>,
+    pub tilt: Option<Tilt>,
+    pub zoom: Option<Zoom>,
+
+    // mouse state
+    pub mouse_press: Option<MousePress>,
+    m_pos: (f64, f64),
+    m_in_window: bool,
 
     // program state
-    pub running:bool,
+    pub running: bool,
     pub trails: bool,
-    pub close:  bool     
+    pub close: bool     
 }
 
 impl Input {
     pub fn new() -> Input {
         Input {
+            // keyboard
             move_x: None,
             move_z: None,
-            pan:    None,
-            tilt:   None,
-            zoom:   None,
-            // strafe: None,
-            running:false,
+            pan: None,
+            tilt: None,
+            zoom: None,
+            running: false,
             trails: true,
-            close:  false
+            close: false,
+
+            // mouse
+            mouse_press: None,
+            m_pos: (0.0, 0.0),
+            m_in_window: false,
         }
     }
 
@@ -54,6 +70,19 @@ impl Input {
                     glutin::WindowEvent::Closed => self.close = true,
                     glutin::WindowEvent::KeyboardInput { input, .. } => 
                         self.handle_key(input),
+                    glutin::WindowEvent::CursorEntered { .. } => 
+                        self.m_in_window = true,
+                    glutin::WindowEvent::CursorLeft { .. } => 
+                        self.m_in_window = false,
+                    glutin::WindowEvent::CursorMoved { position, .. } => 
+                        self.m_pos = position,
+
+                    /* Can't decode mouse events at this level for now. */
+                    glutin::WindowEvent::MouseInput { state, button, .. } =>
+                        if state == glutin::ElementState::Pressed {
+                            self.mouse_press = Some(MousePress { pos: self.m_pos })
+                        },
+                    
                     _ => (),
                 },
                 _ => (),
@@ -129,6 +158,15 @@ impl Input {
             },
 
             _ => (),
+        }
+    }
+
+    fn handle_mouse(&mut self, state: glutin::ElementState, button: glutin::MouseButton) {
+        use glutin::{MouseButton, ElementState};
+
+        // only LMB press for now.
+        if (state, button) == (ElementState::Pressed, MouseButton::Left) {
+
         }
     }
 }

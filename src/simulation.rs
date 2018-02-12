@@ -40,7 +40,7 @@ impl Simulation {
         self.next_id += 1;
         let mut teapot = Teapot::new(pos, vec3(0.0, 0.0, 0.0), 1.0, id);
         let vel = Simulation::orbit_vel(&teapot, self.greatest_mass());
-        teapot.vel = 0.85 * vel;
+        teapot.vel = 0.7 * vel;
         // println!("pos {} {} {}", pos.x, pos.y, pos.z);
         // println!("vel {} {} {}", vel.x, vel.y, vel.z);
         // println!("id  {}", id);

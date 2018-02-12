@@ -51,7 +51,7 @@ fn main() {
 
     /* Construct simulation. */
     let mut sim = simulation::Simulation::new_unary();
-    for _ in 0..10 {
+    for _ in 0..200 {
         sim.add_rand();
     }
 

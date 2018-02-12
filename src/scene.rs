@@ -88,6 +88,10 @@ impl Scene {
             }
         }
 
+        if let Some(mouse_press) = input.mouse_press {
+            println!("Mouse pressed at {}, {}.", mouse_press.pos.0, mouse_press.pos.1)
+        }
+
     }
 
     /* Update view matrix. */
