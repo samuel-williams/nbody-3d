@@ -3,8 +3,18 @@ name = "nbody-3d"
 version = "0.1.0"
 authors = ["fastf"]
 
+[[bin]]
+name = "nbody"
+path = "src/main.rs"
+
 [dependencies]
-cgmath = "*"
-glium = "*"
-itertools = "*"
-rand = "0.3"
+gl = "*"
+piston = "0.35.0"
+piston2d-graphics = "0.24.0"
+glfw_window = "*"
+piston2d-opengl_graphics = "0.50.0"
+
+#cgmath = "*"
+#glium = "*"
+#itertools = "*"
+#rand = "0.3"
