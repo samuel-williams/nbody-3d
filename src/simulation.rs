@@ -30,22 +30,25 @@ impl Simulation {
         }
     }
 
-    pub fn new_binary() -> Simulation {
+    pub fn new_binary(m_exp: f64, r: f32) -> Simulation {
+        let mut b0 = Teapot::new(
+            vec3(r, 0.0, 0.0), 
+            vec3(0.0, 0.0, 0.0), 
+            m_exp, 
+            0
+        );
+        let mut b1 = Teapot::new(
+            vec3(-r, 0.0, 0.0), 
+            vec3(0.0, 0.0, 0.0), 
+            m_exp, 
+            1
+        );
+
+        b0.vel = Simulation::orbit_vel(&b0, &b1) / 2.0;
+        b1.vel = Simulation::orbit_vel(&b1, &b0) / 2.0;
+
         Simulation {
-            teapots: vec![
-                Teapot::new(
-                    vec3(1.0, 0.0, 0.0), 
-                    vec3(0.0, 0.0, 0.01), 
-                    3.5,
-                    0,
-                ),
-                Teapot::new(
-                    vec3(-1.0, 0.0, 0.0), 
-                    vec3(0.0, 0.0, -0.01), 
-                    3.5,
-                    1,
-                )
-            ],
+            teapots: vec![b0, b1],
             rng: rand::thread_rng(),
             tick: 0,
             next_id: 2
@@ -61,8 +64,8 @@ impl Simulation {
         let id = self.next_id;
         self.next_id += 1;
         let mut teapot = Teapot::new(pos, vec3(0.0, 0.0, 0.0), 1.0, id);
-        let vel = Simulation::orbit_vel(&teapot, self.greatest_mass());
-        teapot.vel = 1.2 * vel;
+        let vel = Simulation::orbit_vel(&teapot, self.greatest_force(&teapot));
+        teapot.vel = 1.0 * vel;
         // println!("pos {} {} {}", pos.x, pos.y, pos.z);
         // println!("vel {} {} {}", vel.x, vel.y, vel.z);
         // println!("id  {}", id);
@@ -89,7 +92,7 @@ impl Simulation {
         self.tick += 1;
     }
 
-    /* Return position and magnitude of system barycenter. */
+    /* Find object with greatest mass. */
     fn greatest_mass(&self) -> &Teapot {
         let mut max = &self.teapots[0];
         for teapot in &self.teapots {
@@ -100,10 +103,24 @@ impl Simulation {
         max
     }
 
+    /* Find object exerting greatest force on given object. */
+    fn greatest_force(&self, obj: &Teapot) -> &Teapot {
+        let mut max = &self.teapots[0];
+        let mut max_accel = Teapot::calc_dvel(max, obj);
+        for teapot in &self.teapots {
+            let accel = Teapot::calc_dvel(teapot, obj);
+            if accel.magnitude() > max_accel.magnitude() {
+                max_accel = accel;
+                max = teapot;
+            }
+        }
+        max
+    }
+
     /* Attempt to calculate stable orbit for obj1 about obj2. */
     fn orbit_vel(obj1: &Teapot, obj2: &Teapot) -> Vector3<f64> {
         let m1m2 = 10.0f64.powf(obj1.m_exp) + 10.0f64.powf(obj2.m_exp);
-        let disp: Vector3<f64> = (obj1.pos - obj2.pos).cast().unwrap();
+        let disp: Vector3<f64> = (obj1.pos - obj2.pos).cast();
 
         let v = (G * m1m2 / disp.magnitude()).sqrt();
         let dir = disp.cross(vec3(0.0, 1.0, 0.0)).normalize();

@@ -24,11 +24,11 @@ impl<'a> SimulationWindow<'a> {
         let mut events_loop = glium::glutin::EventsLoop::new();
         let display = SimulationWindow::setup_window(&events_loop);
         let renderer = Renderer::new(display);
-        let mut simulation = Simulation::new_binary();
+        let mut simulation = Simulation::new_binary(4.0, 5.0);
 
-        for _ in 1..20 {
-            simulation.add_rand();
-        }
+        // for _ in 1..20 {
+        //     simulation.add_rand();
+        // }
 
         SimulationWindow {
             events_loop: events_loop,
@@ -46,7 +46,7 @@ impl<'a> SimulationWindow<'a> {
             .with_title("Glium");
         let context = glium::glutin::ContextBuilder::new()
             .with_depth_buffer(24)
-            .with_multisampling(4);
+            .with_multisampling(0);
         
         glium::Display::new(
             window,
@@ -57,7 +57,7 @@ impl<'a> SimulationWindow<'a> {
 
     
     pub fn start(&mut self) {
-        let frame_budget = time::Duration::from_millis(16);
+        let frame_budget = time::Duration::from_millis(32);
         let mut running = true;
         while !self.view_controller.close {
             let draw_time = self.renderer.draw(
@@ -73,8 +73,19 @@ impl<'a> SimulationWindow<'a> {
             self.handle_menu_messages();
             self.view_controller.handle_events(&mut self.events_loop);
 
+            /* TODO: fix these */
+            if self.view_controller.input.clear {
+                self.view_controller.input.clear = false;
+                self.simulation.clear_paths();
+            }
+            if self.view_controller.input.add {
+                self.view_controller.input.add = false;
+                self.simulation.add_rand();
+            }
+
             if self.view_controller.running {            
                 self.simulation.tick();
+                self.simulation.tick(); // 2 ticks per frame
             }
             let update_time = now.elapsed();
 

@@ -77,7 +77,7 @@ impl Teapot {
 
     pub fn update(&mut self, drop_crumb: bool) {
         self.rot = (self.rot + self.d_rot) % Rad(PI * 2.0);
-        self.pos += self.vel.cast().unwrap();
+        self.pos += self.vel.cast();
 
         if drop_crumb {
             self.path.insert(0, GlVertex { position: array3(self.pos) });
@@ -114,8 +114,8 @@ impl Teapot {
             return vec3(0.0, 0.0, 0.0);
         }
 
-        let v0: Vector3<f64> = t0.pos.cast().unwrap();
-        let v1: Vector3<f64> = t1.pos.cast().unwrap();
+        let v0: Vector3<f64> = t0.pos.cast();
+        let v1: Vector3<f64> = t1.pos.cast();
 
         let disp = v1 - v0;
         let r2 = disp.magnitude2();

@@ -46,6 +46,7 @@ pub struct Input {
     pub running: bool,  /* Play/pause simulation. */
     pub trails: bool,   /* Toggle trails. */
     pub clear: bool,    /* Clear trails. */
+    pub add: bool,      /* Add random. */
     pub close: bool,    /* Quit simulation. */     
 }
 
@@ -61,6 +62,7 @@ impl Input {
             running: false,
             trails: true,
             clear: false,
+            add: false,
             close: false,
             // menu: true,
 
@@ -161,6 +163,18 @@ impl Input {
             Some(VirtualKeyCode::P) => {
                 if input.state == ElementState::Released {
                     self.trails = !self.trails
+                }
+            },
+
+            Some(VirtualKeyCode::C) => {
+                if input.state == ElementState::Released {
+                    self.clear = true
+                }
+            },
+
+            Some(VirtualKeyCode::R) => {
+                if input.state == ElementState::Released {
+                    self.add = true
                 }
             },
 
