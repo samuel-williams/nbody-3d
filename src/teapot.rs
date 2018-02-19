@@ -1,6 +1,6 @@
 /* Define teapot type. */
-extern crate cgmath;
-extern crate glium;
+// extern crate cgmath;
+// extern crate glium;
 // extern crate rand;
 
 use gl_vertex::{GlNormal, GlVertex};
@@ -10,9 +10,10 @@ use teapot_obj;
 
 use cgmath::{InnerSpace, Matrix4, Rad, vec3, Vector3};
 use cgmath::conv::array3;
+use glium;
 
 pub const G: f64 = 0.0000001;  // scale gravitational force 
-pub const MAX_TRAIL_LEN: usize = 100;
+pub const MAX_TRAIL_LEN: usize = 1000;
 
 pub struct Geometry {
     pub pos:    glium::VertexBuffer<GlVertex>,
@@ -76,7 +77,7 @@ impl Teapot {
 
     pub fn update(&mut self, drop_crumb: bool) {
         self.rot = (self.rot + self.d_rot) % Rad(PI * 2.0);
-        self.pos += self.vel.cast();
+        self.pos += self.vel.cast().unwrap();
 
         if drop_crumb {
             self.path.insert(0, GlVertex { position: array3(self.pos) });
@@ -94,6 +95,10 @@ impl Teapot {
         translate * tilt * rotate * scale
     }
 
+    pub fn clear_path(&mut self) {
+        self.path.clear();
+    }
+
     /* Calculate gravitational interaction over vector of objects. */
     // fn calc_net_force(&mut self, teapots: &vec::Vec<Teapot>) {
     //     for teapot in teapots {
@@ -109,8 +114,8 @@ impl Teapot {
             return vec3(0.0, 0.0, 0.0);
         }
 
-        let v0: Vector3<f64> = t0.pos.cast();
-        let v1: Vector3<f64> = t1.pos.cast();
+        let v0: Vector3<f64> = t0.pos.cast().unwrap();
+        let v1: Vector3<f64> = t1.pos.cast().unwrap();
 
         let disp = v1 - v0;
         let r2 = disp.magnitude2();

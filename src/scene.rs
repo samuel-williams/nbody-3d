@@ -6,8 +6,8 @@ extern crate rand;
 
 use cgmath::{InnerSpace, Matrix4, Rad, vec3, Vector3};
 use input::{Input, MoveX, MoveZ, Pan, Tilt, Zoom};
-use math::clamp;
 use std::f32::consts::{PI, FRAC_PI_2};
+use math::clamp;
 
 
 const D_POS: f32 = 0.05;
@@ -88,9 +88,9 @@ impl Scene {
             }
         }
 
-        if let Some(mouse_press) = input.mouse_press {
-            println!("Mouse pressed at {}, {}.", mouse_press.pos.0, mouse_press.pos.1)
-        }
+        // if let Some(mouse_press) = input.mouse_press {
+        //     println!("Mouse pressed at {}, {}.", mouse_press.pos.0, mouse_press.pos.1)
+        // }
 
     }
 

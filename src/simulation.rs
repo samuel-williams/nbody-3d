@@ -30,6 +30,28 @@ impl Simulation {
         }
     }
 
+    pub fn new_binary() -> Simulation {
+        Simulation {
+            teapots: vec![
+                Teapot::new(
+                    vec3(1.0, 0.0, 0.0), 
+                    vec3(0.0, 0.0, 0.01), 
+                    3.5,
+                    0,
+                ),
+                Teapot::new(
+                    vec3(-1.0, 0.0, 0.0), 
+                    vec3(0.0, 0.0, -0.01), 
+                    3.5,
+                    1,
+                )
+            ],
+            rng: rand::thread_rng(),
+            tick: 0,
+            next_id: 2
+        }
+    }
+
     pub fn add_rand(&mut self) {
         let pos_range = Range::new(-7.0, 7.0f32);
         let px = pos_range.ind_sample(&mut self.rng);
@@ -40,7 +62,7 @@ impl Simulation {
         self.next_id += 1;
         let mut teapot = Teapot::new(pos, vec3(0.0, 0.0, 0.0), 1.0, id);
         let vel = Simulation::orbit_vel(&teapot, self.greatest_mass());
-        teapot.vel = 0.7 * vel;
+        teapot.vel = 1.2 * vel;
         // println!("pos {} {} {}", pos.x, pos.y, pos.z);
         // println!("vel {} {} {}", vel.x, vel.y, vel.z);
         // println!("id  {}", id);
@@ -81,10 +103,16 @@ impl Simulation {
     /* Attempt to calculate stable orbit for obj1 about obj2. */
     fn orbit_vel(obj1: &Teapot, obj2: &Teapot) -> Vector3<f64> {
         let m1m2 = 10.0f64.powf(obj1.m_exp) + 10.0f64.powf(obj2.m_exp);
-        let disp: Vector3<f64> = (obj1.pos - obj2.pos).cast();
+        let disp: Vector3<f64> = (obj1.pos - obj2.pos).cast().unwrap();
 
         let v = (G * m1m2 / disp.magnitude()).sqrt();
         let dir = disp.cross(vec3(0.0, 1.0, 0.0)).normalize();
         v * dir
+    }
+
+    pub fn clear_paths(&mut self) {
+        for mut teapot in &mut self.teapots {
+            teapot.clear_path();
+        }
     }
 }
