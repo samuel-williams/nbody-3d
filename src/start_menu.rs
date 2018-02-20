@@ -1,56 +1,35 @@
+/*  
+    Menu that is displayed when starting the application. 
+    Gives user choice of several simulation templates:
+        binary - system with two large masses orbiting one another
+        unary - system with single, stationary mass
+        TODO: cloud - system with many small masses (orbiting barycenter?)
+*/
+
 use conrod::{self, widget, Colorable, Positionable, Widget};
 use conrod::backend::glium::glium::{self, Surface};
 
-use std::sync::mpsc;
-use std::thread;
-use std::vec::Vec;
+use simulation_window::Template;
 
-pub enum MenuMsg {
-    ToggleRun,
-    ToggleTrails,
-    Clear,
-    Close,
-}
-
-pub struct MenuHandle {
-    // tx: mpsc::Sender<MenuMsg>,
-    rx: mpsc::Receiver<MenuMsg>,
-}
-
-impl MenuHandle {
-    pub fn build() -> MenuHandle {
-        /* IPC */
-        let (tx, rx) = mpsc::channel();
-
-        thread::spawn(move || {
-            Menu::init(tx).run()
-        });
-
-        MenuHandle {
-            rx: rx,
-        }
-    }
-
-    pub fn get_messages(&self) -> Vec<MenuMsg> {
-        let mut messages = Vec::new();
-        while let Ok(msg) = self.rx.try_recv() {
-            messages.push(msg);
-        }
-
-        messages
-    }
-}
-
-const WIDTH: u32 = 800;
+const WIDTH: u32 = 400;
 const HEIGHT: u32 = 400;
 
+widget_ids!(struct Ids { 
+    master,
+    header,
+    header_text,
+    body, 
+    run_toggle,
+    trails_toggle,
+    clear_button,
+});
 
 struct MenuState {
     running: bool,
-    trails: bool,
+    template_selection: Option<Template>,
 }
 
-struct Menu {
+pub struct StartMenu {
     events_loop: glium::glutin::EventsLoop,
     display: glium::Display,
     ui: conrod::Ui,
@@ -58,17 +37,17 @@ struct Menu {
     renderer: conrod::backend::glium::Renderer,
     image_map: conrod::image::Map<glium::texture::Texture2d>,
     state: MenuState,
-    tx_port: mpsc::Sender<MenuMsg>,
-    // rx_port: mpsc::Receiver<MenuMsg>,
 }
 
-impl Menu {
-    fn init(tx: mpsc::Sender<MenuMsg>, /* rx: mpsc::Receiver<MenuMsg> */) -> Self {
+impl StartMenu {
+    pub fn new() -> Self {
         /* Setup window. */
         let mut events_loop = glium::glutin::EventsLoop::new();
         let window = glium::glutin::WindowBuilder::new()
-            .with_title("NBody-3D Menu")
-            .with_dimensions(WIDTH, HEIGHT);
+            .with_title("nbody-3D menu")
+            .with_dimensions(WIDTH, HEIGHT)
+            .with_max_dimensions(WIDTH, HEIGHT)
+            .with_min_dimensions(WIDTH, HEIGHT);
         let context = glium::glutin::ContextBuilder::new()
             .with_vsync(true)
             .with_multisampling(4);
@@ -96,7 +75,7 @@ impl Menu {
         (in our case, none). */
         let image_map = conrod::image::Map::<glium::texture::Texture2d>::new();
 
-        Menu {
+        StartMenu {
             events_loop: events_loop,
             display: display,
             ui: ui,
@@ -104,18 +83,17 @@ impl Menu {
             renderer: renderer,
             image_map: image_map,
             state: MenuState {
-                running: false,
-                trails: true,
+                running: true,
+                template_selection: None,
             },
-            tx_port: tx,
             // rx_port: rx,
         }
     }
 
-    fn run(&mut self) {
+    pub fn execute(&mut self) -> Option<Template> {
         let mut events = Vec::new();
 
-        'render: loop {
+        'render: while self.state.running {
             events.clear();
 
             // Get all the new events since the last frame.
@@ -143,10 +121,7 @@ impl Menu {
                                     ..
                                 },
                                 ..
-                            } => {
-                                self.tx_port.send(MenuMsg::Close);
-                                break 'render
-                            },
+                            } => break 'render,
                             _ => (),
                         }
                     }
@@ -184,15 +159,16 @@ impl Menu {
                 target.finish().unwrap();
             }
         }
+
+        self.state.template_selection
     }
 
-    fn set_widgets(&mut self) {//ref mut ui: conrod::UiCell, ids: &mut Ids, state: &mut MenuState) {
+    fn set_widgets(&mut self) {
         use conrod::{color, widget, Colorable, Labelable, Positionable, Sizeable, Widget};
 
         let ui = &mut self.ui.set_widgets();
         let ids = &self.ids;
         let state = &mut self.state;
-        let tx_port = &self.tx_port;
 
         /* Construct canvas tree. */
         widget::Canvas::new().flow_down(&[
@@ -208,47 +184,39 @@ impl Menu {
             .set(ids.header_text, ui);
 
         /* Buttons. */
-        let run_toggle = widget::Toggle::new(state.running)
+        let binary_button = widget::Button::new()
             .color(color::DARK_GREEN)
             .w_h(100.0, 100.0)
-            .label("Run")
+            .label("Binary")
             .mid_left_with_margin_on(ids.body, 20.0);
 
-        let trails_toggle = widget::Toggle::new(state.trails)
+        let unary_button = widget::Button::new()
             .color(color::DARK_GREEN)
             .w_h(100.0, 100.0)
-            .label("Trails")
+            .label("Unary")
+            .middle_of(ids.body);
+            
+
+        let cloud_button = widget::Button::new()
+            .color(color::DARK_GREEN)
+            .w_h(100.0, 100.0)
+            .label("Cloud")
             .mid_right_with_margin_on(ids.body, 20.0);
 
-        let clear_button = widget::Button::new()
-            .color(color::DARK_GREEN)
-            .w_h(100.0, 100.0)
-            .label("Clear")
-            .middle_of(ids.body);
-
-        for _ in run_toggle.set(ids.run_toggle, ui) {
-            state.running = !state.running;
-            self.tx_port.send(MenuMsg::ToggleRun).unwrap();
+        for _ in binary_button.set(ids.run_toggle, ui) {
+            state.template_selection = Some(Template::Binary);
+            state.running = false;
         }
 
-        for _ in trails_toggle.set(ids.trails_toggle, ui) {
-            state.trails = !state.trails;
-            self.tx_port.send(MenuMsg::ToggleTrails).unwrap();
+        for _ in unary_button.set(ids.trails_toggle, ui) {
+            state.template_selection = Some(Template::Unary);
+            state.running = false;
         }
 
-        for _ in clear_button.set(ids.clear_button, ui) {
-            self.tx_port.send(MenuMsg::Clear).unwrap();
+        for _ in cloud_button.set(ids.clear_button, ui) {
+            state.template_selection = Some(Template::Cloud);
+            state.running = false;
         }
 
     }
 }
-
-widget_ids!(struct Ids { 
-    master,
-    header,
-    header_text,
-    body, 
-    run_toggle,
-    trails_toggle,
-    clear_button,
-});

@@ -3,7 +3,7 @@
 use cgmath::{Matrix4};
 use glium::glutin::EventsLoop;
 use input::{Input};
-use menu::MenuMsg;
+// use menu::MenuMsg;
 use scene::Scene;
 use std::vec::Vec;
 
