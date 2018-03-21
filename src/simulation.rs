@@ -1,13 +1,25 @@
 /* Do physics simulation on teapots. */
 
 use cgmath::{InnerSpace, vec3, Vector3};
+use config::Config;
+use controller::Controller;
 // use itertools::Itertools;
+use glium;
+use glium::glutin::EventsLoop;
 use rand;
 use rand::distributions::{IndependentSample, Range};
+use render::Renderer;
 use rayon::prelude::*;
 use teapot::{G, Teapot};
 
 const TICKS_PER_PATH_VERT: u64 = 1;
+
+#[derive(Copy, Clone)]
+pub enum Template {
+    Binary,
+    Unary,
+    Cloud,
+}
 
 pub enum Orbit {
     GreatestMass,
@@ -15,29 +27,73 @@ pub enum Orbit {
     Barycenter,
 }
 
-pub struct Simulation {
-    teapots:    Vec<Teapot>,
-    rng:        rand::ThreadRng,
-    tick:       u64,                // current tick
-    next_id:    u32,                // unique id for next object
+pub struct Simulation<'a> {
+    renderer: Renderer<'a>,
+    teapots: Vec<Teapot>,
+    rng: rand::ThreadRng,
+    tick: u64,                // current tick
+    next_id: u32,                // unique id for next object
 }
 
-impl Simulation {
-    pub fn new_unary() -> Simulation {
+impl<'a> Simulation<'a> {
+    pub fn new(config: Config, events_loop: &EventsLoop) -> Simulation<'a> {
+        // let events_loop = glium::glutin::EventsLoop::new();
+        let display = Simulation::setup_window(&events_loop, config);
+        let renderer = Renderer::new(display);
+        let teapots = Vec::new();
+        let rng = rand::thread_rng();
+        let tick = 0;
+        let next_id = 0;
+
         Simulation {
-            teapots: vec![Teapot::new(
-                vec3(0.0, 0.0, 0.0), 
-                vec3(0.0, 0.0, 0.0), 
-                5.0,
-                0,
-            )],
-            rng: rand::thread_rng(),
-            tick: 0,
-            next_id: 1
+            renderer: renderer,
+            teapots: teapots,
+            rng: rng,
+            tick: tick,
+            next_id: next_id,
         }
     }
 
-    pub fn new_binary(m_exp: f64, r: f32) -> Simulation {
+    fn setup_window(events_loop: &EventsLoop, config: Config)
+            -> glium::Display {
+        let window = glium::glutin::WindowBuilder::new()
+            .with_dimensions(config.width, config.height)
+            .with_title("nbody-3D simulation");
+        let context = glium::glutin::ContextBuilder::new()
+            .with_depth_buffer(24)
+            .with_multisampling(config.msaa_samples);
+
+        glium::Display::new(
+            window,
+            context,
+            events_loop
+        ).unwrap()
+    }
+
+    pub fn from_template(template: Template, config: Config, events_loop: &EventsLoop)
+             -> Simulation<'a> {
+        let mut simulation = Simulation::new(config, events_loop);
+        
+        match template {
+            Template::Binary => simulation.setup_new_binary(3.5, 6.0),
+            Template::Unary => simulation.setup_new_unary(),
+            Template::Cloud => unimplemented!(),
+        }
+
+        simulation
+    }
+
+    fn setup_new_unary(&mut self) {
+        self.teapots = vec![Teapot::new(
+            vec3(0.0, 0.0, 0.0), 
+            vec3(0.0, 0.0, 0.0), 
+            3.0,
+            0,
+        )];
+        self.next_id = 1;
+    }
+
+    fn setup_new_binary(&mut self, m_exp: f64, r: f32) {
         let mut b0 = Teapot::new(
             vec3(r, 0.0, 0.0), 
             vec3(0.0, 0.0, 0.0), 
@@ -54,12 +110,8 @@ impl Simulation {
         b0.vel = Simulation::orbit_vel(&b0, &b1) / 2.0;
         b1.vel = Simulation::orbit_vel(&b1, &b0) / 2.0;
 
-        Simulation {
-            teapots: vec![b0, b1],
-            rng: rand::thread_rng(),
-            tick: 0,
-            next_id: 2
-        }
+        self.teapots = vec![b0, b1];
+        self.next_id = 2;
     }
 
     pub fn add_rand(&mut self, orbit: Orbit, ecc: f64) {
@@ -74,7 +126,7 @@ impl Simulation {
         teapot.vel = match orbit {
             Orbit::GreatestForce => {
                 let target = self.greatest_force(&teapot);
-                ecc * Simulation::orbit_vel(&teapot, target) //+ target.vel
+                -ecc * Simulation::orbit_vel(&teapot, target) + target.vel
             },
             Orbit::GreatestMass => {
                 let target = self.greatest_mass();
@@ -94,6 +146,16 @@ impl Simulation {
         &self.teapots
     }
 
+    /* Get events loop for simulation */
+    // pub fn events_loop(&self) -> &glium::glutin::EventsLoop {
+    //     &self.events_loop()
+    // }
+
+    /* Get renderer for simulation. */
+    pub fn renderer(&self) -> &Renderer {
+        &self.renderer
+    }
+
     /* Process one tick of the physics simulation. */
     pub fn tick(&mut self) {
         /* TODO: fix this wacky copy stuff. */
@@ -108,6 +170,10 @@ impl Simulation {
         }
 
         self.tick += 1;
+    }
+
+    pub fn render() {
+
     }
 
     /* Find object with greatest mass. */

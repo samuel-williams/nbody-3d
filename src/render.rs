@@ -5,7 +5,8 @@ use cgmath::conv::*;
 use glium::{self, Display, Program, Surface}; 
 use shaders;
 use teapot;
-use std::{time, vec};
+use std::vec;
+use time::{Duration, PreciseTime};
 
 pub struct RenderState<'a> {
     pub draw_trails: bool,
@@ -73,9 +74,9 @@ impl<'a> Renderer<'a> {
         }
     }
 
-    pub fn draw(&self, state: RenderState, teapots: &Vec<teapot::Teapot>) -> time::Duration {
+    pub fn draw(&self, state: RenderState, teapots: &Vec<teapot::Teapot>) -> Duration {
         let mut target = self.display.draw();
-        let then = time::Instant::now();
+        let then = PreciseTime::now();
         
         /* Clear draw area. */
         target.clear_color_and_depth((0.0, 0.0, 0.0, 1.0), 1.0);
@@ -133,6 +134,6 @@ impl<'a> Renderer<'a> {
         /* Finish. */
         target.finish().unwrap();
 
-        then.elapsed()
+        then.to(PreciseTime::now())
     }
 }

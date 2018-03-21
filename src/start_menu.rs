@@ -9,7 +9,7 @@
 use conrod::{self, widget, Colorable, Positionable, Widget};
 use conrod::backend::glium::glium::{self, Surface};
 
-use simulation_window::Template;
+use simulation::Template;
 
 const WIDTH: u32 = 400;
 const HEIGHT: u32 = 400;

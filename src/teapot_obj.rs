@@ -1,4 +1,18 @@
-use gl_vertex::{GlNormal, GlVertex};
+/* Geometry for teapot model. */
+
+/* Satisfy GlVertex trait for glium. */
+#[derive(Copy, Clone)]
+pub struct GlVertex {
+    pub position: [f32; 3]
+}
+implement_vertex!(GlVertex, position);
+
+/* Satisfy GlNormal trait for glium. */
+#[derive(Copy, Clone)]
+pub struct GlNormal {
+    pub normal: [f32; 3]
+}
+implement_vertex!(GlNormal, normal);
 
 pub const VERTICES: [GlVertex; 531] = [
     GlVertex { position: [0.0, 0.0, 0.0] },   // dummy vector because in the original model indices

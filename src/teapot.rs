@@ -3,10 +3,9 @@
 // extern crate glium;
 // extern crate rand;
 
-use gl_vertex::{GlNormal, GlVertex};
 use rand;
 use std::f32::consts::PI;
-use teapot_obj;
+use teapot_obj::*;
 
 use cgmath::{InnerSpace, Matrix4, Rad, vec3, Vector3};
 use cgmath::conv::array3;
@@ -23,13 +22,12 @@ pub struct Geometry {
 
 pub fn load_geometry(display: &glium::Display) -> Box<Geometry> {
     Box::new(Geometry {
-        pos: glium::VertexBuffer::new(
-            display, &teapot_obj::VERTICES).unwrap(),
-        norm: glium::VertexBuffer::new(
-            display, &teapot_obj::NORMALS).unwrap(),
-        ind: glium::IndexBuffer::new(display, 
-            glium::index::PrimitiveType::TrianglesList, 
-            &teapot_obj::INDICES).unwrap()    
+        pos: glium::VertexBuffer::new(display, &VERTICES).unwrap(),
+        norm: glium::VertexBuffer::new(display, &NORMALS).unwrap(),
+        ind: glium::IndexBuffer::new(display,
+                glium::index::PrimitiveType::TrianglesList, 
+                &INDICES
+            ).unwrap()    
     })
 }
 

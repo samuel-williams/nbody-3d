@@ -3,47 +3,42 @@ extern crate cgmath;
 #[macro_use] extern crate glium;
 extern crate rand;
 extern crate rayon;
+extern crate time;
 
-mod gl_vertex;
-mod input;
-mod math;
+mod config;
+mod controller;
+// mod gl_vertex;
+// mod input;
+// mod math;
+mod physics;
 mod start_menu;
 mod render;
-mod scene;
+// mod scene;
 mod shaders;
 mod simulation;
-mod simulation_window;
+// mod simulation_window;
 mod teapot;
 mod teapot_obj;
-mod view_controller;
+mod view;
 
-// use menu::MenuHandle;
-use simulation_window::SimulationWindow;
+use controller::Controller;
+use simulation::Simulation;
 
 fn main() {
-    App::new().start();
-}
+    let config = config::Config::from_file("config.cfg");
+    let mut events_loop = glium::glutin::EventsLoop::new();
 
-struct App<'a> {
-    // menu: MenuHandle,
-    sim_window: Option<SimulationWindow<'a>>,
-}
-
-impl<'a> App<'a> {
-    pub fn new() -> Self {
-        let template_selection = start_menu::StartMenu::new().execute();
-
-        App {
-            sim_window: 
-                if let Some(template) = template_selection {
-                    Some(SimulationWindow::new(template))
-                } else { None },
-        }
+    /* Setup simulation. */
+    let mut simulation;
+    if let Some(template) = start_menu::StartMenu::new().execute() {
+        simulation = Box::new(Simulation::from_template(template, config, &events_loop))
+    } else {
+        return
     }
 
-    pub fn start(&mut self) {
-        if let Some(ref mut sim_window) = self.sim_window {
-            sim_window.start();
-        }
-    }
+    /* Setup controller. */
+    let mut controller = Controller::new(config, &mut simulation);
+
+    /* Run. */
+    controller.start_simulation(&mut events_loop);
 }
