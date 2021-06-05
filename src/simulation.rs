@@ -1,227 +1,212 @@
-/* Do physics simulation on teapots. */
+use cgmath::prelude::*;
 
-use cgmath::{InnerSpace, vec3, Vector3};
-use config::Config;
-use controller::Controller;
-// use itertools::Itertools;
-use glium;
-use glium::glutin::EventsLoop;
-use rand;
-use rand::distributions::{IndependentSample, Range};
-use render::Renderer;
-use rayon::prelude::*;
-use teapot::{G, Teapot};
+use crate::render::Instance;
 
-const TICKS_PER_PATH_VERT: u64 = 1;
+const G: f64 = 0.00000001;
 
-#[derive(Copy, Clone)]
-pub enum Template {
-    Binary,
-    Unary,
-    Cloud,
+const BODY_COLOR: [f32; 4] = [0.0, 0.2, 0.60, 1.0];
+
+#[derive(Clone, Debug)]
+struct Body {
+    position: cgmath::Vector3<f64>,
+    velocity: cgmath::Vector3<f64>,
+    mass: f64,
 }
 
-pub enum Orbit {
-    GreatestMass,
-    GreatestForce,
-    Barycenter,
+impl PartialEq for Body {
+    // for now, just check that they don't have the exact same position.
+    // this would be a singularity anyway (infinite Fg).
+    fn eq(&self, other: &Self) -> bool {
+        self.position == other.position
+    }
 }
 
-pub struct Simulation<'a> {
-    renderer: Renderer<'a>,
-    teapots: Vec<Teapot>,
-    rng: rand::ThreadRng,
-    tick: u64,                // current tick
-    next_id: u32,                // unique id for next object
+enum SimulationBuffer {
+    Buffer0,
+    Buffer1,
 }
 
-impl<'a> Simulation<'a> {
-    pub fn new(config: Config, events_loop: &EventsLoop) -> Simulation<'a> {
-        // let events_loop = glium::glutin::EventsLoop::new();
-        let display = Simulation::setup_window(&events_loop, config);
-        let renderer = Renderer::new(display);
-        let teapots = Vec::new();
-        let rng = rand::thread_rng();
-        let tick = 0;
-        let next_id = 0;
+pub enum BodyMass {
+    Small,
+    Medium,
+    Large,
+}
 
-        Simulation {
-            renderer: renderer,
-            teapots: teapots,
-            rng: rng,
-            tick: tick,
-            next_id: next_id,
-        }
-    }
+pub struct Simulation {
+    buffer0: Vec<Body>,
+    buffer1: Vec<Body>,
+    current_buffer: SimulationBuffer,
+}
 
-    fn setup_window(events_loop: &EventsLoop, config: Config)
-            -> glium::Display {
-        let window = glium::glutin::WindowBuilder::new()
-            .with_dimensions(config.width, config.height)
-            .with_title("nbody-3D simulation");
-        let context = glium::glutin::ContextBuilder::new()
-            .with_depth_buffer(24)
-            .with_multisampling(config.msaa_samples);
+fn barycenter_for_bodies(bodies: &Vec<Body>) -> cgmath::Vector3<f64> 
+{
+    let total_mass: f64 = bodies.iter().map(|b| b.mass).sum();    
+    bodies.iter().map(|b| b.mass * b.position).sum::<cgmath::Vector3<f64>>() / total_mass
+}
 
-        glium::Display::new(
-            window,
-            context,
-            events_loop
-        ).unwrap()
-    }
+fn gravitational_force(a: &Body, b: &Body) -> f64 {
+    let displacement = a.position - b.position;
+    G * a.mass * b.mass / displacement.magnitude2()
+}
 
-    pub fn from_template(template: Template, config: Config, events_loop: &EventsLoop)
-             -> Simulation<'a> {
-        let mut simulation = Simulation::new(config, events_loop);
-        
-        match template {
-            Template::Binary => simulation.setup_new_binary(3.5, 6.0),
-            Template::Unary => simulation.setup_new_unary(),
-            Template::Cloud => unimplemented!(),
-        }
+fn orbital_velocity(a: &Body, b: &Body) -> cgmath::Vector3<f64> {
+    let gravitational_parameter = G * (a.mass + b.mass);
+    let displacement = b.position - a.position;
+    let v = (gravitational_parameter / displacement.magnitude()).sqrt();
 
-        simulation
-    }
+    v * (b.mass / (a.mass + b.mass)) * displacement.normalize().cross(cgmath::Vector3::unit_z())
+}
 
-    fn setup_new_unary(&mut self) {
-        self.teapots = vec![Teapot::new(
-            vec3(0.0, 0.0, 0.0), 
-            vec3(0.0, 0.0, 0.0), 
-            3.0,
-            0,
-        )];
-        self.next_id = 1;
-    }
-
-    fn setup_new_binary(&mut self, m_exp: f64, r: f32) {
-        let mut b0 = Teapot::new(
-            vec3(r, 0.0, 0.0), 
-            vec3(0.0, 0.0, 0.0), 
-            m_exp, 
-            0
-        );
-        let mut b1 = Teapot::new(
-            vec3(-r, 0.0, 0.0), 
-            vec3(0.0, 0.0, 0.0), 
-            m_exp, 
-            1
-        );
-
-        b0.vel = Simulation::orbit_vel(&b0, &b1) / 2.0;
-        b1.vel = Simulation::orbit_vel(&b1, &b0) / 2.0;
-
-        self.teapots = vec![b0, b1];
-        self.next_id = 2;
-    }
-
-    pub fn add_rand(&mut self, orbit: Orbit, ecc: f64) {
-        let pos_range = Range::new(-7.0, 7.0f32);
-        let px = pos_range.ind_sample(&mut self.rng);
-        let py = Range::new(-0.5, 0.5f32).ind_sample(&mut self.rng);
-        let pz = pos_range.ind_sample(&mut self.rng);
-        let pos = vec3(px, py, pz);
-        let id = self.next_id;
-        self.next_id += 1;
-        let mut teapot = Teapot::new(pos, vec3(0.0, 0.0, 0.0), 1.0, id);
-        teapot.vel = match orbit {
-            Orbit::GreatestForce => {
-                let target = self.greatest_force(&teapot);
-                -ecc * Simulation::orbit_vel(&teapot, target) + target.vel
-            },
-            Orbit::GreatestMass => {
-                let target = self.greatest_mass();
-                ecc * Simulation::orbit_vel(&teapot, target)
-            },
-            Orbit::Barycenter => unimplemented!()
+impl Simulation {
+    pub fn new() -> Self {
+        let body0 = Body {
+            position: (10.0, 0.0, 0.0).into(),
+            velocity: (0.0, 0.0, 0.0).into(),
+            mass: 10000000.0,
         };
 
-        // println!("pos {} {} {}", pos.x, pos.y, pos.z);
-        // println!("vel {} {} {}", vel.x, vel.y, vel.z);
-        // println!("id  {}", id);
-        self.teapots.push(teapot);
+        let body1 = Body {
+            position: -2.0 * body0.position,
+            velocity: (0.0, 0.0, 0.0).into(),
+            mass: body0.mass / 2.0,
+        };
+
+        let mut bodies = vec![body0, body1];
+        bodies[0].velocity = orbital_velocity(&bodies[0], &bodies[1]);
+        bodies[1].velocity = orbital_velocity(&bodies[1], &bodies[0]);
+
+        Simulation {
+            buffer0: bodies.clone(),
+            buffer1: bodies,
+            current_buffer: SimulationBuffer::Buffer0,
+        }
     }
 
-    /* Get teapots. */
-    pub fn teapots(&self) -> &Vec<Teapot> {
-        &self.teapots
+    pub fn barycenter(&self) -> cgmath::Vector3<f64> {
+        barycenter_for_bodies(&self.current_buffer())
+        // cgmath::Vector3::zero()
     }
 
-    /* Get events loop for simulation */
-    // pub fn events_loop(&self) -> &glium::glutin::EventsLoop {
-    //     &self.events_loop()
-    // }
+    pub fn instances(&self) -> Vec<crate::render::Instance> {
+        let buffer = match self.current_buffer {
+            SimulationBuffer::Buffer0 => &self.buffer0,
+            SimulationBuffer::Buffer1 => &self.buffer1,
+        };
 
-    /* Get renderer for simulation. */
-    pub fn renderer(&self) -> &Renderer {
-        &self.renderer
+        buffer.iter().map(|body| {
+            Instance {
+                position: cgmath::vec3(body.position.x as f32, body.position.y as f32, body.position.z as f32),
+                rotation: cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_z(), cgmath::Deg(0.0)),
+                color: BODY_COLOR,
+                scale: (body.mass.log10() / 7.0) as f32,
+            }
+        }).collect::<Vec<_>>()
+    }
+    
+    pub fn add_body_at_position(&mut self, barycentric_position: cgmath::Vector3<f64>, mass: BodyMass) {
+        let mut new_body = Body {
+            position: barycentric_position,
+            velocity: cgmath::Vector3::zero(),
+            mass: match mass {
+                BodyMass::Small => 10.0,
+                BodyMass::Medium => 1000.0,
+                BodyMass::Large => 100000.0,
+            },
+        };
+
+        // get current bodies and sort (greatest-to-least) by gravitational force at this point
+        let mut existing_bodies = self.current_buffer().clone();
+        existing_bodies.sort_unstable_by(|a, b| {
+            let force_a = gravitational_force(a, &new_body);
+            let force_b = gravitational_force(b, &new_body);
+            force_b.partial_cmp(&force_a).unwrap()
+        });
+
+        // see if we can find a reasonably stable orbit, 
+        // otherwise orbit the barycenter and hope for the best (or chaos)
+        let orbit_target = match existing_bodies.len() {
+            0 => None,
+            1 => Some(&existing_bodies[0]),
+            _ => {
+                let attractor_separation = (existing_bodies[0].position - existing_bodies[1].position).magnitude();
+                let viable_orbit_radius = attractor_separation / 5.0;
+
+                let distance0 = (new_body.position - existing_bodies[0].position).magnitude();
+                let distance1 = (new_body.position - existing_bodies[1].position).magnitude();
+
+                if distance0.le(&viable_orbit_radius) {
+                    Some(&existing_bodies[0])
+                } else if distance1.le(&viable_orbit_radius) {
+                    Some(&existing_bodies[1])
+                } else {
+                    None
+                }
+            }
+        };
+
+        new_body.velocity = match orbit_target {
+            Some(target) => {
+                orbital_velocity(&new_body, target) + target.velocity
+            }
+            None => {
+                // pretend barycenter is a point mass
+                let temp_barycenter = Body {
+                    position: self.barycenter(),
+                    velocity: cgmath::Vector3::zero(),
+                    mass: self.current_buffer().iter().map(|b| b.mass).sum(),
+                };
+
+                orbital_velocity(&new_body, &temp_barycenter)
+            }
+        };
+
+        self.buffer0.push(new_body.clone());
+        self.buffer1.push(new_body);
     }
 
-    /* Process one tick of the physics simulation. */
+    fn current_buffer(&self) -> &Vec<Body> {
+        match self.current_buffer {
+            SimulationBuffer::Buffer0 => &self.buffer0,
+            SimulationBuffer::Buffer1 => &self.buffer1,
+        }
+    }
+
     pub fn tick(&mut self) {
-        /* TODO: fix this wacky copy stuff. */
-        let copy = self.teapots.to_vec();
+        let (current_buffer, next_buffer) = match self.current_buffer {
+            SimulationBuffer::Buffer0 => (&self.buffer0, &mut self.buffer1),
+            SimulationBuffer::Buffer1 => (&self.buffer1, &mut self.buffer0),
+        };
 
-        for teapot in self.teapots.iter_mut() {
-            for other in copy.iter() {
-                let dvel = Teapot::calc_dvel(&teapot, &other);
-                teapot.vel += dvel;
-            }
-            teapot.update(self.tick % TICKS_PER_PATH_VERT == 0);
+        // this is not as accurate as it could be, but it is fast.
+        // in the future, could consider sorting intermediate values to sum the smaller values first
+        for (current, next) in current_buffer.iter().zip(next_buffer.iter_mut()) {
+            next.velocity = current_buffer.iter().fold(current.velocity, |velocity_acc, b| {
+                if b != current {
+                    let displacement = b.position - current.position;
+                    let force = gravitational_force(current, b);
+                    let d_velocity = force / current.mass;
+
+                    velocity_acc + d_velocity * displacement.normalize()
+                } else {
+                    velocity_acc
+                }
+            });
+
+            next.position = current.position + next.velocity;
         }
 
-        self.tick += 1;
+
+        self.current_buffer = match self.current_buffer {
+            SimulationBuffer::Buffer0 => SimulationBuffer::Buffer1,
+            SimulationBuffer::Buffer1 => SimulationBuffer::Buffer0,
+        };
     }
 
-    pub fn render() {
-
-    }
-
-    /* Find object with greatest mass. */
-    fn greatest_mass(&self) -> &Teapot {
-        let mut max = &self.teapots[0];
-        for teapot in &self.teapots {
-            if teapot.m_exp > max.m_exp {
-                max = &teapot;
-            }
+    fn _debug_print_simulation_frame(&self) {
+        println!("BEGIN SIMULATION FRAME");
+        for body in self.current_buffer() {
+            println!("  {:?}", body);
         }
-
-        println!("greatest mass id: {}", max.id);
-        max
-    }
-
-    /* Find object exerting greatest force on given object. */
-    fn greatest_force(&self, obj: &Teapot) -> &Teapot {
-        let mut max = &self.teapots[0];
-        let mut max_accel = Teapot::calc_dvel(max, obj);
-        for teapot in &self.teapots {
-            let accel = Teapot::calc_dvel(teapot, obj);
-            if accel.magnitude() > max_accel.magnitude() {
-                max_accel = accel;
-                max = teapot;
-            }
-        }
-
-        // if max.id != 0 {
-        //     println!("target:  id {}  force {}", max.id, Teapot::calc_dvel(max, obj).magnitude());
-        //     println!("m0 force: {}", Teapot::calc_dvel(&self.teapots[0], obj).magnitude());
-        // }
-
-        max
-    }
-
-    /* Attempt to calculate stable orbit for obj1 about obj2. */
-    fn orbit_vel(obj1: &Teapot, obj2: &Teapot) -> Vector3<f64> {
-        let m1m2 = 10.0f64.powf(obj1.m_exp) + 10.0f64.powf(obj2.m_exp);
-        let disp: Vector3<f64> = (obj1.pos - obj2.pos).cast().unwrap();
-
-        let v = (G * m1m2 / disp.magnitude()).sqrt();
-        let dir = disp.cross(vec3(0.0, 1.0, 0.0)).normalize();
-        v * dir
-    }
-
-    pub fn clear_paths(&mut self) {
-        for mut teapot in &mut self.teapots {
-            teapot.clear_path();
-        }
+        println!("END SIMULATION FRAME");
     }
 }
