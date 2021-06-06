@@ -10,11 +10,7 @@ To run:
 * `cargo run --release`
 
 Controls:
-* Basic arcball camera.
+* `W` to zoom in, `S` to zoom out.
 * `SPACE` to play/pause the simulation.
-* `↑ ↓ ← →` to pitch/yaw the camera about its focus point.
-* `WASD` to move camera focus about xy plane.
-* `Z` to zoom out, `X` to zoom in.
-* `R` to spawn object with random orbital parameters.
-* `P` to toggle trails.
-* `C` to clear trails.
+* Left click anywhere in the window to add a new object at that location. If it is close enough to another object with a strong gravitational pull, it will attempt to orbit that object.
+* Hold `LSHIFT` while clicking to add a more massive object, or `LCTRL` for an even more massive one.
